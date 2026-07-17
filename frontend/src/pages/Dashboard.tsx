@@ -12,7 +12,9 @@ import {
   Video,
   Star,
   DollarSign,
-  UserCheck
+  UserCheck,
+  MessageSquare,
+  X
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import confetti from 'canvas-confetti';
@@ -41,7 +43,7 @@ const analyticsData = [
 ];
 
 const Dashboard: React.FC = () => {
-  const { user, token, aiParseBio, updateProfile, refreshProfile } = useAuth();
+  const { user, token, socket, aiParseBio, updateProfile, refreshProfile } = useAuth();
   const navigate = useNavigate();
 
   // Profile Edit States
@@ -59,6 +61,11 @@ const Dashboard: React.FC = () => {
   const [newCategoryDesc, setNewCategoryDesc] = useState('');
   const [categoryLoading, setCategoryLoading] = useState(false);
   const [categoryError, setCategoryError] = useState('');
+
+  // Chat window state
+  const [activeChatUser, setActiveChatUser] = useState<{ _id: string; name: string } | null>(null);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
 
   // Sessions State
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -292,6 +299,56 @@ const Dashboard: React.FC = () => {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  // --- Socket.io Chat Integration ---
+  useEffect(() => {
+    if (!socket || !activeChatUser) return;
+
+    // Fetch message history
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/chat/${activeChatUser._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setChatMessages(data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchHistory();
+
+    const handleIncomingMessage = (message: any) => {
+      if (
+        (message.sender === activeChatUser._id && message.recipient === user?._id) ||
+        (message.sender === user?._id && message.recipient === activeChatUser._id)
+      ) {
+        setChatMessages(prev => [...prev, message]);
+      }
+    };
+
+    socket.on('receive-message', handleIncomingMessage);
+
+    return () => {
+      socket.off('receive-message', handleIncomingMessage);
+    };
+  }, [socket, activeChatUser?._id, user?._id]);
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !activeChatUser || !socket || !user) return;
+
+    socket.emit('send-message', {
+      senderId: user._id,
+      recipientId: activeChatUser._id,
+      content: newMessage
+    });
+
+    setNewMessage('');
   };
 
   const formatSessionTime = (isoString: string) => {
@@ -719,6 +776,16 @@ const Dashboard: React.FC = () => {
 
                       {/* Action buttons */}
                       <div className="flex flex-wrap gap-2 mt-1">
+                        {(session.status === 'pending' || session.status === 'accepted') && (
+                          <button
+                            onClick={() => setActiveChatUser({ _id: partner._id, name: partner.name })}
+                            className="bg-white/5 hover:bg-white/10 text-slate-350 border border-white/10 px-3 py-1.5 rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all"
+                            title="Chat with partner"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Chat
+                          </button>
+                        )}
                         {/* Pending actions for Teacher */}
                         {session.status === 'pending' && isTeacher && (
                           <>
@@ -844,6 +911,66 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* CHAT OVERLAY SLIDEOUT */}
+      {activeChatUser && (
+        <div className="fixed bottom-0 right-6 z-50 w-80 glass border border-white/10 rounded-t-2xl flex flex-col h-96 shadow-2xl">
+          {/* Header */}
+          <div className="bg-slate-900 px-4 py-3 rounded-t-2xl border-b border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold text-xs">
+                {activeChatUser.name.charAt(0)}
+              </div>
+              <span className="text-xs font-bold text-white max-w-[130px] truncate">{activeChatUser.name}</span>
+            </div>
+            <button
+              onClick={() => setActiveChatUser(null)}
+              className="text-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Messages list */}
+          <div className="flex-1 p-3 overflow-y-auto flex flex-col gap-2 bg-slate-950/40">
+            {chatMessages.length === 0 ? (
+              <p className="text-[10px] text-slate-500 italic text-center py-10">Start the conversation! Say hello.</p>
+            ) : (
+              chatMessages.map((msg, idx) => {
+                const isMine = msg.sender === user?._id;
+                return (
+                  <div
+                    key={idx}
+                    className={`max-w-[75%] p-2 rounded-lg text-xs leading-relaxed ${
+                      isMine 
+                        ? 'bg-purple-600 text-white self-end rounded-br-none' 
+                        : 'bg-white/5 text-slate-200 self-start rounded-bl-none border border-white/5'
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Input form */}
+          <form onSubmit={handleSendMessage} className="p-2 border-t border-white/5 bg-slate-900">
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                placeholder="Type a message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                className="flex-1 bg-slate-950 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
+              />
+              <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold px-3 rounded-lg">
+                Send
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>
