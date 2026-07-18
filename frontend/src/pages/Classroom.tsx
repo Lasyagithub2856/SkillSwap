@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Video, VideoOff, Mic, MicOff, Palette, RotateCcw, Code, LogOut } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, Palette, RotateCcw, Code, LogOut, BookOpen, Download } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const Classroom: React.FC = () => {
@@ -29,8 +29,11 @@ const Classroom: React.FC = () => {
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const candidateQueueRef = useRef<any[]>([]);
 
-  // Classroom Tool Tab: 'whiteboard' or 'editor'
-  const [activeTool, setActiveTool] = useState<'whiteboard' | 'editor'>('whiteboard');
+  // Classroom Tool Tab: 'whiteboard' or 'editor' or 'notes'
+  const [activeTool, setActiveTool] = useState<'whiteboard' | 'editor' | 'notes'>('whiteboard');
+
+  // Personal Private Notes states
+  const [personalNotes, setPersonalNotes] = useState('');
 
   // Whiteboard Canvas states
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -414,6 +417,36 @@ const Classroom: React.FC = () => {
     });
   };
 
+  // --- PERSONAL PRIVATE NOTES LOGIC ---
+  useEffect(() => {
+    if (user && roomId) {
+      const saved = localStorage.getItem(`skillswap-notes-${roomId}-${user._id}`);
+      if (saved) {
+        setPersonalNotes(saved);
+      } else {
+        setPersonalNotes(`# Personal Session Notes: ${skill}\nDate: ${new Date().toLocaleDateString()}\n\nWrite your personal lesson notes, takeaways, code snippets, and scratch summaries here!\nOnly you can see this section. It is automatically saved in your browser.\n`);
+      }
+    }
+  }, [roomId, user?._id, skill]);
+
+  const handlePersonalNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setPersonalNotes(val);
+    if (user && roomId) {
+      localStorage.setItem(`skillswap-notes-${roomId}-${user._id}`, val);
+    }
+  };
+
+  const handleDownloadNotes = () => {
+    const element = document.createElement("a");
+    const file = new Blob([personalNotes], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = `${skill.replace(/\s+/g, '_')}_Session_Notes.txt`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
   const handleLeaveClass = () => {
     if (window.confirm('Do you want to end the session?')) {
       confetti({ particleCount: 50 });
@@ -452,6 +485,15 @@ const Classroom: React.FC = () => {
             >
               <Code className="h-3.5 w-3.5" />
               Code Sandbox
+            </button>
+            <button
+              onClick={() => setActiveTool('notes')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                activeTool === 'notes' ? 'bg-purple-600 text-white' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              My Notes
             </button>
           </div>
         </div>
@@ -530,6 +572,33 @@ const Classroom: React.FC = () => {
                 onChange={handleCodeChange}
                 className="flex-1 bg-transparent border-0 resize-none font-mono text-xs text-slate-300 focus:outline-none focus:ring-0 leading-relaxed"
                 spellCheck={false}
+              />
+            </div>
+          )}
+
+          {/* C. MY PRIVATE NOTES */}
+          {activeTool === 'notes' && (
+            <div className="w-full h-full bg-slate-950/90 border border-white/5 rounded-2xl p-5 flex flex-col relative">
+              <div className="flex items-center justify-between border-b border-white/5 pb-2.5 mb-3">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest block">My Session Notes</span>
+                  <span className="text-[9px] text-slate-400 mt-0.5">Private to you • Saved in browser</span>
+                </div>
+                <button
+                  onClick={handleDownloadNotes}
+                  className="bg-purple-600/10 border border-purple-500/20 hover:bg-purple-600 hover:text-white text-purple-300 font-semibold text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                  title="Download notes to your computer"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download Notes
+                </button>
+              </div>
+              <textarea
+                value={personalNotes}
+                onChange={handlePersonalNotesChange}
+                className="flex-1 bg-transparent border-0 resize-none font-mono text-xs text-slate-350 focus:outline-none focus:ring-0 leading-relaxed"
+                spellCheck={false}
+                placeholder="Write your takeaways, summary points, links, and session ideas here. Only you can view these notes!"
               />
             </div>
           )}
