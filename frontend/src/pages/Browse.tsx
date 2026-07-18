@@ -152,7 +152,7 @@ const Browse: React.FC = () => {
         if (isPM && hours < 12) hours += 12;
         if (isAM && hours === 12) hours = 0;
 
-        const pad = (n: number) => n.toString().padStart(2, '0');
+
 
         if (!year || !month || !day || isNaN(hours) || isNaN(minutes)) {
           // Fallback to standard constructor
@@ -161,8 +161,13 @@ const Browse: React.FC = () => {
           return d;
         }
 
-        const isoStr = `${year}-${pad(Number(month))}-${pad(Number(day))}T${pad(hours)}:${pad(minutes)}:00Z`;
-        const d = new Date(isoStr);
+        const d = new Date(
+          Number(year),
+          Number(month) - 1,
+          Number(day),
+          hours,
+          minutes
+        );
         if (isNaN(d.getTime())) throw new Error('Invalid Date format');
         return d;
       } catch (err) {
@@ -549,7 +554,7 @@ const Browse: React.FC = () => {
               {/* Time Slots */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-400">Start Time (UTC)</label>
+                  <label className="text-xs font-semibold text-slate-400">Start Time</label>
                   <input
                     type="time"
                     required
@@ -559,7 +564,7 @@ const Browse: React.FC = () => {
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-slate-400">End Time (UTC)</label>
+                  <label className="text-xs font-semibold text-slate-400">End Time</label>
                   <input
                     type="time"
                     required
