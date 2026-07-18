@@ -25,6 +25,7 @@ const Classroom: React.FC = () => {
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
 
   // Classroom Tool Tab: 'whiteboard' or 'editor'
   const [activeTool, setActiveTool] = useState<'whiteboard' | 'editor'>('whiteboard');
@@ -74,6 +75,24 @@ const Classroom: React.FC = () => {
       }
     };
   }, []);
+
+  // Sync ref with local stream state
+  useEffect(() => {
+    localStreamRef.current = localStream;
+  }, [localStream]);
+
+  // Dynamically attach tracks when localStream becomes available
+  useEffect(() => {
+    if (localStream && peerRef.current) {
+      const senders = peerRef.current.getSenders();
+      localStream.getTracks().forEach(track => {
+        const alreadyAdded = senders.some(s => s.track === track);
+        if (!alreadyAdded) {
+          peerRef.current?.addTrack(track, localStream);
+        }
+      });
+    }
+  }, [localStream]);
 
   // 2. Connect to signaling socket and handle WebRTC setup
   useEffect(() => {
@@ -156,7 +175,7 @@ const Classroom: React.FC = () => {
         peerRef.current.close();
       }
     };
-  }, [socket, roomId, localStream]);
+  }, [socket, roomId]);
 
   // WebRTC Peer Connection Helper
   const initializePeerConnection = (targetSocketId: string, isInitiator = false) => {
@@ -164,9 +183,10 @@ const Classroom: React.FC = () => {
     peerRef.current = pc;
 
     // Attach local stream tracks to WebRTC
-    if (localStream) {
-      localStream.getTracks().forEach(track => {
-        pc.addTrack(track, localStream);
+    const currentStream = localStreamRef.current;
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => {
+        pc.addTrack(track, currentStream);
       });
     }
 
