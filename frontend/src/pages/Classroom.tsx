@@ -41,11 +41,21 @@ const Classroom: React.FC = () => {
   // Code Editor states
   const [codeText, setCodeText] = useState('// Welcome to the SkillSwap Shared Workspace!\n// Write code or take notes here in real-time.\n\nfunction helloWorld() {\n  console.log("Welcome to Skill Swap!");\n}');
 
-  // WebRTC STUN servers
+  // WebRTC STUN/TURN servers
   const iceServers = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' }
+      { urls: 'stun:stun1.l.google.com:19302' },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelayproject',
+        credential: 'openrelayproject'
+      }
     ]
   };
 
