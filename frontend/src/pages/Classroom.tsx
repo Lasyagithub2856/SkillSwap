@@ -27,6 +27,7 @@ const Classroom: React.FC = () => {
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const candidateQueueRef = useRef<any[]>([]);
 
   // Classroom Tool Tab: 'whiteboard' or 'editor'
   const [activeTool, setActiveTool] = useState<'whiteboard' | 'editor'>('whiteboard');
@@ -119,7 +120,11 @@ const Classroom: React.FC = () => {
     // Receive peer signal
     socket.on('signal', async ({ senderSocketId, signalData }) => {
       try {
-        if (!peerRef.current) {
+        if (signalData.sdp && signalData.sdp.type === 'offer') {
+          // Fresh offer indicates a new connection or refresh, recreate peer connection
+          console.log('New offer received, recreating peer connection');
+          initializePeerConnection(senderSocketId);
+        } else if (!peerRef.current) {
           initializePeerConnection(senderSocketId);
         }
 
@@ -127,6 +132,20 @@ const Classroom: React.FC = () => {
 
         if (signalData.sdp) {
           await pc.setRemoteDescription(new RTCSessionDescription(signalData.sdp));
+
+          // Drain candidate queue
+          if (candidateQueueRef.current.length > 0) {
+            console.log(`Draining ${candidateQueueRef.current.length} queued candidates`);
+            for (const cand of candidateQueueRef.current) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+              } catch (e) {
+                console.warn('Failed to add queued candidate:', e);
+              }
+            }
+            candidateQueueRef.current = [];
+          }
+
           if (signalData.sdp.type === 'offer') {
             const answer = await pc.createAnswer();
             await pc.setLocalDescription(answer);
@@ -136,7 +155,12 @@ const Classroom: React.FC = () => {
             });
           }
         } else if (signalData.candidate) {
-          await pc.addIceCandidate(new RTCIceCandidate(signalData.candidate));
+          if (pc.remoteDescription && pc.remoteDescription.type) {
+            await pc.addIceCandidate(new RTCIceCandidate(signalData.candidate));
+          } else {
+            console.log('Buffering ICE candidate as remoteDescription is not yet set');
+            candidateQueueRef.current.push(signalData.candidate);
+          }
         }
       } catch (err) {
         console.error('Error handling WebRTC signal:', err);
@@ -191,6 +215,15 @@ const Classroom: React.FC = () => {
 
   // WebRTC Peer Connection Helper
   const initializePeerConnection = (targetSocketId: string, isInitiator = false) => {
+    if (peerRef.current) {
+      console.log('Closing existing RTCPeerConnection before initializing new one');
+      try {
+        peerRef.current.close();
+      } catch (err) {
+        console.error('Error closing peer connection:', err);
+      }
+    }
+    candidateQueueRef.current = [];
     const pc = new RTCPeerConnection(iceServers);
     peerRef.current = pc;
 
