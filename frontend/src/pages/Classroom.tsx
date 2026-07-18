@@ -26,6 +26,7 @@ const Classroom: React.FC = () => {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
 
   // Classroom Tool Tab: 'whiteboard' or 'editor'
   const [activeTool, setActiveTool] = useState<'whiteboard' | 'editor'>('whiteboard');
@@ -74,6 +75,7 @@ const Classroom: React.FC = () => {
       } catch (err) {
         console.warn('Could not acquire local camera/mic. Using mock preview:', err);
         setDeviceError(true);
+        setLocalStream(new MediaStream());
       }
     };
 
@@ -106,7 +108,7 @@ const Classroom: React.FC = () => {
 
   // 2. Connect to signaling socket and handle WebRTC setup
   useEffect(() => {
-    if (!socket || !roomId || !user) return;
+    if (!socket || !roomId || !user || !localStream) return;
 
     socket.emit('join-room', {
       roomId,
@@ -185,7 +187,7 @@ const Classroom: React.FC = () => {
         peerRef.current.close();
       }
     };
-  }, [socket, roomId]);
+  }, [socket, roomId, localStream]);
 
   // WebRTC Peer Connection Helper
   const initializePeerConnection = (targetSocketId: string, isInitiator = false) => {
@@ -202,11 +204,21 @@ const Classroom: React.FC = () => {
 
     // Capture remote stream tracks
     pc.ontrack = (event) => {
-      console.log('WebRTC track received from remote peer');
+      console.log('WebRTC track received from remote peer:', event.track.kind);
       if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = event.streams[0];
+        }
+      } else {
+        // Fallback for browsers that send tracks individually without streams array
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
+        }
+        remoteStreamRef.current.addTrack(event.track);
+        setRemoteStream(remoteStreamRef.current);
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = remoteStreamRef.current;
         }
       }
     };
