@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Repeat, Coins, LogOut, LayoutDashboard, Search } from 'lucide-react';
@@ -7,6 +7,7 @@ const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -52,7 +53,7 @@ const Navbar: React.FC = () => {
       )}
 
       {/* Auth & Token Display */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 relative">
         {user ? (
           <>
             {/* Tokens Badge */}
@@ -61,24 +62,100 @@ const Navbar: React.FC = () => {
               <span>{user.tokens} SwapTokens</span>
             </div>
 
-            {/* User Icon */}
-            <div className="flex items-center gap-2.5 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+            {/* Click-away backdrop */}
+            {showProfileDropdown && (
+              <div 
+                className="fixed inset-0 z-40 cursor-default" 
+                onClick={() => setShowProfileDropdown(false)} 
+              />
+            )}
+
+            {/* User Icon Button */}
+            <button
+              onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+              className="flex items-center gap-2.5 bg-white/5 hover:bg-white/10 active:scale-[0.98] border border-white/10 px-3 py-1.5 rounded-xl transition-all cursor-pointer relative z-50"
+            >
               <div className="h-6 w-6 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold text-xs uppercase border border-purple-500/30">
                 {user.name.charAt(0)}
               </div>
               <span className="hidden sm:inline text-xs font-semibold text-slate-300 max-w-[100px] truncate">
                 {user.name}
               </span>
-            </div>
-
-            {/* Logout */}
-            <button
-              onClick={handleLogout}
-              className="text-slate-400 hover:text-red-400 p-2 rounded-xl hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
-              title="Logout"
-            >
-              <LogOut className="h-4 w-4" />
             </button>
+
+            {/* Profile Dropdown Card */}
+            {showProfileDropdown && (
+              <div className="absolute right-0 top-14 z-50 w-80 glass border border-white/10 rounded-2xl p-5 shadow-2xl flex flex-col gap-4 animate-fade-in">
+                {/* Header Profile Details */}
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center font-bold text-base uppercase border border-purple-500/30">
+                    {user.name.charAt(0)}
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-bold text-white truncate">{user.name}</span>
+                    <span className="text-[10px] text-slate-400 truncate">{user.email}</span>
+                  </div>
+                </div>
+
+                <div className="h-px bg-white/5" />
+
+                {/* Bio Section */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bio</span>
+                  <p className="text-xs text-slate-300 leading-relaxed max-h-20 overflow-y-auto pr-1">
+                    {user.bio || "No bio listed yet. Add one in your Dashboard!"}
+                  </p>
+                </div>
+
+                <div className="h-px bg-white/5" />
+
+                {/* Skills to Teach */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Teaching Skills</span>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                    {user.skillsToTeach.length === 0 ? (
+                      <span className="text-[10px] text-slate-500 italic">None added yet</span>
+                    ) : (
+                      user.skillsToTeach.map((s: any, idx: number) => (
+                        <span key={idx} className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[9px] font-semibold px-2 py-0.5 rounded-full">
+                          {s.name} ({s.level})
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Skills to Learn */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Learning Skills</span>
+                  <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                    {user.skillsToLearn.length === 0 ? (
+                      <span className="text-[10px] text-slate-500 italic">None added yet</span>
+                    ) : (
+                      user.skillsToLearn.map((s: any, idx: number) => (
+                        <span key={idx} className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[9px] font-semibold px-2 py-0.5 rounded-full">
+                          {s.name} ({s.level})
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="h-px bg-white/5 mt-1" />
+
+                {/* Action buttons inside Profile Card */}
+                <button
+                  onClick={() => {
+                    setShowProfileDropdown(false);
+                    handleLogout();
+                  }}
+                  className="w-full bg-red-600/10 border border-red-500/20 hover:bg-red-600 hover:text-white text-red-300 font-semibold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  Log Out
+                </button>
+              </div>
+            )}
           </>
         ) : (
           <Link
