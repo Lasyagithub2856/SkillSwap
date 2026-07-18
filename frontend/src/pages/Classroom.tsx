@@ -70,9 +70,6 @@ const Classroom: React.FC = () => {
           audio: true
         });
         setLocalStream(stream);
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
       } catch (err) {
         console.warn('Could not acquire local camera/mic. Using mock preview:', err);
         setDeviceError(true);
@@ -106,6 +103,20 @@ const Classroom: React.FC = () => {
       });
     }
   }, [localStream]);
+
+  // Set local video stream srcObject when elements mount
+  useEffect(() => {
+    if (localStream && localVideoRef.current) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream]);
+
+  // Set remote video stream srcObject when elements mount
+  useEffect(() => {
+    if (remoteStream && remoteVideoRef.current) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
 
   // 2. Connect to signaling socket and handle WebRTC setup
   useEffect(() => {
@@ -240,19 +251,14 @@ const Classroom: React.FC = () => {
       console.log('WebRTC track received from remote peer:', event.track.kind);
       if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = event.streams[0];
-        }
       } else {
         // Fallback for browsers that send tracks individually without streams array
         if (!remoteStreamRef.current) {
           remoteStreamRef.current = new MediaStream();
         }
         remoteStreamRef.current.addTrack(event.track);
-        setRemoteStream(remoteStreamRef.current);
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = remoteStreamRef.current;
-        }
+        // Create a new MediaStream instance wrapper to force React state update on track addition
+        setRemoteStream(new MediaStream(remoteStreamRef.current.getTracks()));
       }
     };
 
